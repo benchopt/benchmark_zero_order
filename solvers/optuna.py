@@ -1,5 +1,4 @@
 from benchopt import BaseSolver
-from benchopt.stopping_criterion import SufficientProgressCriterion
 
 import numpy as np
 import optuna
@@ -19,9 +18,7 @@ class Solver(BaseSolver):
         "solver": ["cmaes", "TPE", "RandomSearch"]
     }
 
-    stopping_criterion = SufficientProgressCriterion(
-        patience=3, strategy='callback'
-    )
+    sampling_strategy = 'callback'
 
     def set_objective(self, function, dimension, bounds):
         self.function = function
