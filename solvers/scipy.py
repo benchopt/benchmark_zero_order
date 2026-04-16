@@ -1,8 +1,7 @@
-from benchopt import BaseSolver, safe_import_context
+from benchopt import BaseSolver
 
-with safe_import_context() as import_ctx:
-    import numpy as np
-    from scipy.optimize import minimize
+import numpy as np
+from scipy.optimize import minimize
 
 
 class Solver(BaseSolver):
@@ -14,32 +13,57 @@ class Solver(BaseSolver):
     requirements = ["numpy", "scipy"]
     parameters = {
         "solver": ["Nelder-Mead", "Powell", "BFGS"],
-        "seed": [42],
     }
+
+    sampling_strategy = 'callback'
 
     def set_objective(self, function, dimension, bounds):
         self.function = function
         self.dimension = dimension
         self.bounds = bounds
 
-    def run(self, n_iter):
+    def run(self, cb):
         f = self.function
-        rng = np.random.RandomState(self.seed)  # fix seed
+
+        seed = self.get_seed(
+            use_repetition=True, use_dataset=True, use_solver=True
+        )
+        rng = np.random.RandomState(seed)  # fix seed
         x0 = rng.uniform(size=self.dimension,
                          low=self.bounds[0],
                          high=self.bounds[1])
+        self.xopt = x0
+        best_val = np.inf
 
-        if n_iter == 0:
-            self.xopt = x0
-            return
+        class _StopScipy(Exception):
+            pass
 
-        result = minimize(
-            f,
-            x0=x0,
-            method=self.solver,
-            options={"maxiter": n_iter, "xatol": 1e-20, "fatol": 1e-20},
-        )
-        self.xopt = result.x
+        def objective(x):
+            nonlocal best_val
+            value = f(x)
+            if value < best_val:
+                best_val = value
+                self.xopt = np.asarray(x).flatten()
+            return value
+
+        def scipy_callback(xk):
+            if not cb():
+                raise _StopScipy()
+
+        options = {}
+        if self.solver in ("Nelder-Mead", "Powell"):
+            options.update({"xatol": 1e-20, "fatol": 1e-20})
+
+        try:
+            minimize(
+                objective,
+                x0=x0,
+                method=self.solver,
+                callback=scipy_callback,
+                options=options,
+            )
+        except _StopScipy:
+            pass
 
     def get_result(self):
-        return self.xopt.flatten()
+        return dict(x=self.xopt)
