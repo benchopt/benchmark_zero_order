@@ -1,8 +1,6 @@
-from benchopt import safe_import_context
 from benchopt import BaseDataset
 
-with safe_import_context() as import_ctx:
-    from PyBenchFCN import SingleObjectiveProblem as SOP
+from PyBenchFCN import SingleObjectiveProblem as SOP
 
 
 class Dataset(BaseDataset):
@@ -10,7 +8,7 @@ class Dataset(BaseDataset):
     name = "FCN"
 
     install_cmd = "conda"
-    requirements = ["pip:PyBenchFCN"]
+    requirements = ["pip::PyBenchFCN"]
 
     # List of parameters to generate the datasets. The benchmark will consider
     # the cross product for each key in the dictionary.

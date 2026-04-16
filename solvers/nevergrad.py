@@ -1,8 +1,8 @@
-from benchopt import BaseSolver, safe_import_context
+from benchopt import BaseSolver
+from benchopt.stopping_criterion import SufficientProgressCriterion
 
-with safe_import_context() as import_ctx:
-    import numpy as np
-    import nevergrad as ng
+import numpy as np
+import nevergrad as ng
 
 
 class Solver(BaseSolver):
@@ -11,39 +11,55 @@ class Solver(BaseSolver):
     name = "nevergrad"
 
     install_cmd = "conda"
-    requirements = [
-        "nevergrad",
-    ]
+    requirements = ["nevergrad"]
     parameters = {
         "solver": ["NGOpt", "RandomSearch", "ScrHammersleySearch",
                    "TwoPointsDE", "CMA", "PSO"],
-        "seed": [42],
     }
+
+    stopping_criterion = SufficientProgressCriterion(
+        patience=3, strategy='callback'
+    )
 
     def set_objective(self, function, dimension, bounds):
         self.function = function
         self.dimension = dimension
         self.bounds = bounds
 
-    def run(self, n_iter):
-        rng = np.random.RandomState(self.seed)  # fix seed
-
-        if n_iter == 0:
-            x0 = rng.uniform(size=self.dimension,
-                             low=self.bounds[0],
-                             high=self.bounds[1])
-            self.xopt = x0
-            return
-
+    def run(self, cb):
         f = self.function
+        self.xopt = None
+
+        # Get a seed that varies across repetitions, datasets and solvers,
+        # to ensure a good coverage of the search space, while still being
+        # reproducible.
+        seed = self.get_seed(
+            use_repetition=True, use_dataset=True, use_solver=True
+        )
+        rng = np.random.RandomState(seed)
+
         parametrization = ng.p.Array(shape=(self.dimension,))
         parametrization.set_bounds(self.bounds[0], self.bounds[1])
         parametrization.random_state = rng  # fix seed
         optimizer = ng.optimizers.registry[self.solver](
-            budget=n_iter, parametrization=parametrization, num_workers=1
+            budget=1000, parametrization=parametrization, num_workers=1
         )
+
+        def stop_criterion(optimizer):
+            if optimizer.num_tell == 0:
+                return False
+
+            recommendation = optimizer.provide_recommendation()
+            if recommendation is not None:
+                self.xopt = np.asarray(recommendation.value).flatten()
+            return not cb()
+
+        optimizer.register_callback("ask", ng.callbacks.EarlyStopping(
+            stop_criterion
+        ))
+
         recommendation = optimizer.minimize(f)
-        self.xopt = np.array(recommendation.value)
+        self.xopt = np.asarray(recommendation.value).flatten()
 
     def get_result(self):
-        return self.xopt.flatten()
+        return dict(x=self.xopt)

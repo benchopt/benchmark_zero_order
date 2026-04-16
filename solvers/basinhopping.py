@@ -11,10 +11,9 @@ class Solver(BaseSolver):
     name = "basinhopping"
 
     install_cmd = "conda"
-    requirements = ["numpy", "scipy"]
+    requirements = ["scipy"]
     parameters = {
         "temperature": [1, 10],
-        "seed": [42],
     }
 
     def set_objective(self, function, dimension, bounds):
@@ -24,7 +23,10 @@ class Solver(BaseSolver):
 
     def run(self, n_iter):
         f = self.function
-        rng = np.random.RandomState(self.seed)  # fix seed
+        seed = self.get_seed(
+            use_repetition=True, use_dataset=True, use_solver=True
+        )
+        rng = np.random.RandomState(seed)  # fix seed
         x0 = rng.uniform(size=self.dimension,
                          low=self.bounds[0],
                          high=self.bounds[1])
@@ -35,4 +37,4 @@ class Solver(BaseSolver):
         self.xopt = result.x
 
     def get_result(self):
-        return self.xopt.flatten()
+        return dict(x=self.xopt.flatten())
