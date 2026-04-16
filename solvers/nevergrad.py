@@ -10,7 +10,7 @@ class Solver(BaseSolver):
     name = "nevergrad"
 
     install_cmd = "conda"
-    requirements = ["nevergrad"]
+    requirements = ["pip::nevergrad"]
     parameters = {
         "solver": ["NGOpt", "RandomSearch", "ScrHammersleySearch",
                    "TwoPointsDE", "CMA", "PSO"],
